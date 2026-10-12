@@ -408,6 +408,49 @@ export interface NetworkDoctorReport {
   issues: NetworkDoctorIssue[]
 }
 
+export interface InterfaceSpeedResult {
+  interfaceId: string
+  interfaceName: string
+  status: 'completed' | 'unreachable'
+  speedBytesPerSec: number
+  bytesUsed: number
+  error?: string
+}
+
+export interface CombinedSpeedResult {
+  speedBytesPerSec: number
+  bytesUsed: number
+  /** Contribution of each network during the combined measurement */
+  contributions: Record<string, { bytes: number; percent: number }>
+}
+
+export interface SpeedComparisonReport {
+  timestamp: number
+  individualResults: InterfaceSpeedResult[]
+  combinedResult?: CombinedSpeedResult
+  fastestIndividual?: {
+    interfaceId: string
+    interfaceName: string
+    speedBytesPerSec: number
+  }
+  speedupMultiplier?: number
+  speedupPercent?: number
+  totalBytesUsed: number
+  assessment: 'significant_gain' | 'moderate_gain' | 'single_network' | 'no_gain' | 'failed'
+  assessmentNote: string
+}
+
+export interface SpeedComparisonProgress {
+  stageIndex: number
+  totalStages: number
+  stageName: string
+  stageKind: 'individual' | 'combined'
+  phase: 'warming_up' | 'measuring'
+  percent: number
+  currentSpeedBytesPerSec: number
+  totalBytesUsedSoFar: number
+}
+
 interface StartDownloadRequestBase {
   url: string
   destinationDir: string

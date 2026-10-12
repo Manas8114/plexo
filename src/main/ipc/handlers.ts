@@ -25,6 +25,7 @@ import { deviceBindingSupported } from '../network/deviceBinding'
 import { pendingLink, pendingLinks, releaseLink } from '../openLinks'
 import { NetworkMonitor } from '../network/interfaces'
 import { getWindowsDoctorReport } from '../network/windowsDoctor'
+import { SpeedComparisonManager } from '../network/speedComparison'
 import { loadSettings, saveSettings } from '../settings'
 import { showUpdateMenu, updateState } from '../updater'
 
@@ -253,6 +254,21 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): Down
   handle('getNetworkDoctorReport', async (_event, force) =>
     getWindowsDoctorReport(networks.current ?? [], force)
   )
+
+  const speedComparisonManager = new SpeedComparisonManager()
+
+  handle('startSpeedComparison', async (_event, interfaceIds) =>
+    speedComparisonManager.start(networks.current ?? [], interfaceIds, (progress) => {
+      const window = getWindow()
+      if (window && !window.isDestroyed()) {
+        window.webContents.send(IpcChannels.speedComparisonProgress, progress)
+      }
+    })
+  )
+
+  handle('cancelSpeedComparison', async () => {
+    speedComparisonManager.cancel()
+  })
 
   return manager
 }

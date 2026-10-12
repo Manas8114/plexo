@@ -46,6 +46,7 @@ Plexo splits each download across every network you select, so a second connecti
 
 - **Speed limits**: a total limit for all downloads, a per-network limit, and **Slow mode**, a one-click lower limit (2 MB/s by default) for when you're on a call
 - **Data limits**: a daily, weekly, or monthly allowance per network. Plexo stops using a network once its allowance is used up.
+- **Speed comparison**: benchmark individual connections side-by-side with combined multi-interface downloads to measure real-world throughput gains and verify multi-network aggregation
 - **Named networks**: Plexo shows adapters by their real names (Wi-Fi, Ethernet, iPhone) instead of `en0`. You can rename and recolor them.
 - **Live view**: throughput charts, time left, per-stream stats, and a grid of every block colored by the network that fetched it
 
@@ -108,6 +109,17 @@ Open **Networks → Speed & data limits… → All downloads** and find **Downlo
 Outside those hours, new downloads and downloads you resume wait in the queue. At the stop time, active downloads and torrent uploads stop, keeping progress for the next window. Downloads you pause yourself stay paused. Scheduled work survives restarting Plexo; when the end date passes, it stays waiting until you change or disable the schedule. Disabling the schedule lets the queue start immediately.
 
 For a window crossing midnight, repeat days and the end date refer to the day it starts. Keep Plexo running and the computer awake for the scheduled start; Plexo keeps the computer awake while downloading, but does not wake a sleeping computer. Checking links and fetching magnet metadata when adding downloads can still use data outside the scheduled hours. The schedule controls Plexo’s transfers, not other apps or Plexo’s update check.
+
+## Compare network download speeds
+
+Open **Compare speeds…** from the Networks menu footer to benchmark your connections.
+
+Plexo tests each selected network individually, then benchmarks them running together using an identical total stream count for a fair comparison:
+
+- **Warm-up phase**: ignores initial TCP slow-start and connection establishment overhead to capture accurate steady-state throughput.
+- **In-memory streaming**: fetches test data from reliable high-speed endpoints (e.g. Cloudflare speed test) directly into memory without writing temporary files to disk.
+- **Multiplier & breakdown**: shows aggregate speedup (e.g. `1.85×`), each network's measured individual throughput, and its percentage share when working together in combined mode.
+- **Diagnostics**: detects if combined performance matches, falls short of, or fails across interfaces, helping you verify that your adapters are routing through distinct uplinks.
 
 ## How Plexo combines networks
 

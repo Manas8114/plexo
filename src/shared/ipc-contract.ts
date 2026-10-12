@@ -8,7 +8,8 @@ import type {
   StartDownloadRequest,
   TorrentFileEntry,
   UpdateState,
-  NetworkDoctorReport
+  NetworkDoctorReport,
+  SpeedComparisonReport
 } from './types'
 
 /** The request/response half of the IPC surface (every IpcChannels entry except the
@@ -69,4 +70,8 @@ export interface IpcContract {
   dismissLink: { args: [id: string]; result: void }
   /** Read-only Windows Network Doctor diagnostic report. */
   getNetworkDoctorReport: { args: [force?: boolean]; result: NetworkDoctorReport }
+  /** Compare individual and combined network download speeds. */
+  startSpeedComparison: { args: [interfaceIds?: string[]]; result: SpeedComparisonReport }
+  /** Cancel an in-progress speed comparison. */
+  cancelSpeedComparison: { args: []; result: void }
 }

@@ -7,6 +7,7 @@ import { useFormatSpeed, useFormatSpeedLimit } from '../hooks/useFormatSpeed'
 import { formatDataUsage } from '../utils/format'
 import { NetworkEditPopover } from './NetworkEditPopover'
 import { NetworkDoctorDialog } from './NetworkDoctorDialog'
+import { SpeedComparisonDialog } from './SpeedComparisonDialog'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
 import { Button } from './ui/button'
 import { TruncatedText } from './TruncatedText'
@@ -28,6 +29,7 @@ export function NetworksMenu({
   const networkVisual = useNetworkVisuals()
   const [open, setOpen] = useState(false)
   const [doctorOpen, setDoctorOpen] = useState(false)
+  const [speedComparisonOpen, setSpeedComparisonOpen] = useState(false)
   const usage = useNetworkUsage(open)
 
   // Every running download's speed over each network, added up.
@@ -167,21 +169,34 @@ export function NetworksMenu({
           >
             Speed &amp; data limits
           </button>
-          {window.plexo.initialState.isWindows && (
+          <div className="flex items-center gap-3">
             <button
               type="button"
               className="text-[13px] font-medium text-muted-foreground hover:text-foreground hover:underline"
               onClick={() => {
                 setOpen(false)
-                setDoctorOpen(true)
+                setSpeedComparisonOpen(true)
               }}
             >
-              Network Doctor
+              Compare speeds
             </button>
-          )}
+            {window.plexo.initialState.isWindows && (
+              <button
+                type="button"
+                className="text-[13px] font-medium text-muted-foreground hover:text-foreground hover:underline"
+                onClick={() => {
+                  setOpen(false)
+                  setDoctorOpen(true)
+                }}
+              >
+                Network Doctor
+              </button>
+            )}
+          </div>
         </div>
       </PopoverContent>
       <NetworkDoctorDialog open={doctorOpen} onOpenChange={setDoctorOpen} />
+      <SpeedComparisonDialog open={speedComparisonOpen} onOpenChange={setSpeedComparisonOpen} />
     </Popover>
   )
 }
