@@ -4,7 +4,7 @@
 
 Plexo is a download manager for Windows, macOS, and Linux that downloads one file over several internet connections at the same time. If your computer has Wi-Fi and a phone tethered over USB, Plexo uses both for the same download. It handles direct links, magnet links, and `.torrent` files, with a queue, a downloads list, and speed and data limits for each network.
 
-https://github.com/user-attachments/assets/e57728f4-fb63-441f-839c-174eef954b17
+<https://github.com/user-attachments/assets/e57728f4-fb63-441f-839c-174eef954b17>
 
 ## Download Plexo
 
@@ -59,10 +59,13 @@ Plexo can only use a connection your operating system shows as a network adapter
 - **Windows turns Wi-Fi off when Ethernet or tethering is plugged in**:
   - **Windows Pro & Enterprise**: open the Group Policy Editor (`gpedit.msc`), go to _Computer Configuration_ › _Administrative Templates_ › _Network_ › _Windows Connection Manager_, and set **Minimize the number of simultaneous connections to the Internet or a Windows domain** to **Disabled**.
   - **Windows Home** (which does not have `gpedit.msc`): open an elevated Command Prompt or PowerShell (Run as Administrator) and run:
+
     ```cmd
     reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\WcmSvc\GroupPolicy" /v fMinimizeConnections /t REG_DWORD /d 0 /f
     ```
+
     Restart your computer or reconnect your network adapters for the change to take effect.
+
   - You can check your system's configuration at any time with Plexo's built-in **Network Doctor**, opened from the Networks menu footer on Windows.
 - **Windows Network Doctor (Read-Only Diagnostics)**:
   Plexo includes a built-in diagnostic tool on Windows to help troubleshoot common multi-network configuration issues. It is strictly read-only and never modifies system settings, adapter configurations, or registry values automatically. It inspects:
