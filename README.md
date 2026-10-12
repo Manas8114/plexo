@@ -55,7 +55,21 @@ Plexo adds speed only when each network reaches the internet through its own con
 
 Plexo can only use a connection your operating system shows as a network adapter. Two setups need an extra step:
 
-- **Windows turns Wi-Fi off when Ethernet is plugged in**: open the Group Policy Editor (`gpedit.msc`), go to _Computer Configuration_ › _Administrative Templates_ › _Network_ › _Windows Connection Manager_, and set **Minimize the number of simultaneous connections to the Internet or a Windows domain** to **Disabled**
+- **Windows turns Wi-Fi off when Ethernet or tethering is plugged in**:
+  - **Windows Pro & Enterprise**: open the Group Policy Editor (`gpedit.msc`), go to _Computer Configuration_ › _Administrative Templates_ › _Network_ › _Windows Connection Manager_, and set **Minimize the number of simultaneous connections to the Internet or a Windows domain** to **Disabled**.
+  - **Windows Home** (which does not have `gpedit.msc`): open an elevated Command Prompt or PowerShell (Run as Administrator) and run:
+    ```cmd
+    reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\WcmSvc\GroupPolicy" /v fMinimizeConnections /t REG_DWORD /d 0 /f
+    ```
+    Restart your computer or reconnect your network adapters for the change to take effect.
+  - You can check your system's configuration at any time with Plexo's built-in **Network Doctor**, opened from the Networks menu footer on Windows.
+- **Windows Network Doctor (Read-Only Diagnostics)**:
+  Plexo includes a built-in diagnostic tool on Windows to help troubleshoot common multi-network configuration issues. It is strictly read-only and never modifies system settings, adapter configurations, or registry values automatically. It inspects:
+  - **Connection policy (`fMinimizeConnections`)**: Checks whether Windows Connection Manager is configured to drop secondary connections when tethering is plugged in. On domain-joined or enterprise-managed devices, Network Doctor surfaces an informational notice since group policies may be centrally administered.
+  - **Default route ownership and metrics**: Evaluates combined route metrics (`RouteMetric + InterfaceMetric`) to determine which connection carries general unpinned internet traffic, highlighting when a phone tether takes precedence over Wi-Fi so users can manage cellular data consumption.
+  - **IPv4 subnet collisions**: Detects when multiple active network interfaces reside on identical IPv4 subnets (e.g., conflicting `192.168.1.0/24` ranges between a router and phone hotspot).
+  - **APIPA self-assigned IPs and missing gateways**: Flags unreachable `169.254.x.x` configurations or interfaces lacking default internet routes.
+  - **Virtual and VPN adapters**: Identifies Hyper-V, WSL, and VPN tunnel adapters that share physical hardware rather than providing independent internet uplinks.
 - **An Android phone over USB on macOS**: macOS has no driver for Android's USB tethering. Install TetherKit, as described in [Use an Android phone over USB on macOS](#use-an-android-phone-over-usb-on-macos).
 
 On Windows, install your phone maker's driver if the phone doesn't appear in Network Settings. An adapter appearing in Plexo doesn't guarantee it reaches the internet: VPN, virtual, and isolated adapters show up too. Check each network's latency and speed in Plexo.
