@@ -70,7 +70,7 @@ export function NetworksMenu({
         )}
         <ChevronDown className="size-3.5 text-muted-foreground" />
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-[340px] gap-0 p-0">
+      <PopoverContent align="end" className="w-[360px] gap-0 p-0">
         <div className="border-b-[0.5px] border-border px-4 py-3 text-[14px] font-semibold">
           Networks
         </div>
@@ -161,7 +161,7 @@ export function NetworksMenu({
         <div className="flex items-center justify-between border-t border-border px-4 py-2.5">
           <button
             type="button"
-            className="text-[13px] font-medium text-primary hover:underline"
+            className="text-[13px] font-medium text-primary hover:underline whitespace-nowrap shrink-0"
             onClick={() => {
               setOpen(false)
               onOpenLimits(null)
@@ -169,10 +169,10 @@ export function NetworksMenu({
           >
             Speed &amp; data limits
           </button>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 shrink-0">
             <button
               type="button"
-              className="text-[13px] font-medium text-muted-foreground hover:text-foreground hover:underline"
+              className="text-[13px] font-medium text-muted-foreground hover:text-foreground hover:underline whitespace-nowrap"
               onClick={() => {
                 setOpen(false)
                 setSpeedComparisonOpen(true)
@@ -183,7 +183,7 @@ export function NetworksMenu({
             {window.plexo.initialState.isWindows && (
               <button
                 type="button"
-                className="text-[13px] font-medium text-muted-foreground hover:text-foreground hover:underline"
+                className="text-[13px] font-medium text-muted-foreground hover:text-foreground hover:underline whitespace-nowrap"
                 onClick={() => {
                   setOpen(false)
                   setDoctorOpen(true)

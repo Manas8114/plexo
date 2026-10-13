@@ -1,5 +1,6 @@
 import type { NetworkDoctorIssue, NetworkDoctorReport } from '@shared/types'
 import {
+  Activity,
   AlertTriangle,
   Check,
   CheckCircle2,
@@ -162,20 +163,27 @@ export function NetworkDoctorDialog({
         <DialogHeader className="border-b border-border px-5 py-4">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5 min-w-0">
+              <Activity className="size-4 text-primary shrink-0" />
               <DialogTitle className="text-base font-semibold truncate">
                 Windows Network Doctor
               </DialogTitle>
-              {warnings.length > 0 ? (
-                <span className="rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 px-2 py-0.5 font-medium text-[10.5px]">
-                  Needs Attention
-                </span>
-              ) : infos.length > 0 ? (
-                <span className="rounded-full bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 font-medium text-[10.5px]">
-                  Optimization Available
-                </span>
+              {report ? (
+                warnings.length > 0 ? (
+                  <span className="rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 px-2 py-0.5 font-medium text-[10.5px]">
+                    Needs Attention
+                  </span>
+                ) : infos.length > 0 ? (
+                  <span className="rounded-full bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 font-medium text-[10.5px]">
+                    Optimization Available
+                  </span>
+                ) : (
+                  <span className="rounded-full bg-green-500/10 text-green-700 dark:text-green-300 border border-green-500/20 px-2 py-0.5 font-medium text-[10.5px]">
+                    Ready
+                  </span>
+                )
               ) : (
-                <span className="rounded-full bg-green-500/10 text-green-700 dark:text-green-300 border border-green-500/20 px-2 py-0.5 font-medium text-[10.5px]">
-                  Ready
+                <span className="rounded-full bg-muted text-muted-foreground border border-border px-2 py-0.5 font-medium text-[10.5px]">
+                  Scanning...
                 </span>
               )}
             </div>
@@ -391,7 +399,7 @@ export function NetworkDoctorDialog({
                               setFixFeedback(null)
                               setPendingConsentIssue(issue)
                             }}
-                            className="gap-1.5 text-xs h-7.5"
+                            className="gap-1.5 text-xs"
                           >
                             <Wrench className="size-3.5" />
                             {issue.fix.label}
@@ -402,7 +410,7 @@ export function NetworkDoctorDialog({
                             variant="outline"
                             size="sm"
                             onClick={() => handlePlexoFix(issue)}
-                            className="gap-1.5 text-xs h-7.5"
+                            className="gap-1.5 text-xs"
                           >
                             <Check className="size-3.5" />
                             {issue.fix.label}
@@ -503,7 +511,7 @@ export function NetworkDoctorDialog({
                               setFixFeedback(null)
                               setPendingConsentIssue(issue)
                             }}
-                            className="gap-1.5 text-xs h-7.5"
+                            className="gap-1.5 text-xs"
                           >
                             <Wrench className="size-3.5" />
                             {issue.fix.label}
@@ -514,7 +522,7 @@ export function NetworkDoctorDialog({
                             variant="outline"
                             size="sm"
                             onClick={() => handlePlexoFix(issue)}
-                            className="gap-1.5 text-xs h-7.5"
+                            className="gap-1.5 text-xs"
                           >
                             <Check className="size-3.5" />
                             {issue.fix.label}
@@ -583,13 +591,15 @@ export function NetworkDoctorDialog({
           )}
         </div>
 
-        <DialogFooter className="border-t border-border px-5 py-3 bg-muted/30 flex items-center justify-between sm:justify-between">
+        <DialogFooter className="m-0 border-t border-border px-5 py-3 bg-muted/30 flex items-center justify-between sm:justify-between rounded-b-xl">
           <span className="text-[11.5px] text-muted-foreground">
-            {warnings.length > 0
-              ? `${warnings.length} issue${warnings.length > 1 ? 's' : ''} need attention`
-              : infos.length > 0
-                ? `${infos.length} recommendation${infos.length > 1 ? 's' : ''} available`
-                : 'All settings verified'}
+            {report
+              ? warnings.length > 0
+                ? `${warnings.length} issue${warnings.length > 1 ? 's' : ''} need attention`
+                : infos.length > 0
+                  ? `${infos.length} recommendation${infos.length > 1 ? 's' : ''} available`
+                  : 'All settings verified'
+              : 'Scanning network configuration...'}
           </span>
           <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>
             Close

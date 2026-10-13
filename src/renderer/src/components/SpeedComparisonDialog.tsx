@@ -450,7 +450,7 @@ export function SpeedComparisonDialog({
           )}
         </div>
 
-        <DialogFooter className="border-t border-border px-5 py-3 bg-muted/30 flex items-center justify-between sm:justify-between">
+        <DialogFooter className="m-0 border-t border-border px-5 py-3 bg-muted/30 flex items-center justify-between sm:justify-between rounded-b-xl">
           {running ? (
             <>
               <span className="text-xs text-muted-foreground animate-pulse">
