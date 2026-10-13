@@ -70,7 +70,7 @@ export function NetworksMenu({
         )}
         <ChevronDown className="size-3.5 text-muted-foreground" />
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-[360px] gap-0 p-0">
+      <PopoverContent align="end" className="w-[390px] gap-0 p-0">
         <div className="border-b-[0.5px] border-border px-4 py-3 text-[14px] font-semibold">
           Networks
         </div>
@@ -158,7 +158,7 @@ export function NetworksMenu({
             </div>
           )
         })}
-        <div className="flex items-center justify-between border-t border-border px-4 py-2.5">
+        <div className="flex items-center justify-between gap-4 border-t border-border px-4 py-2.5">
           <button
             type="button"
             className="text-[13px] font-medium text-primary hover:underline whitespace-nowrap shrink-0"
