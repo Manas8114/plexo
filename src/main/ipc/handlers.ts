@@ -24,7 +24,7 @@ import { probeUrl } from '../download/probe'
 import { deviceBindingSupported } from '../network/deviceBinding'
 import { pendingLink, pendingLinks, releaseLink } from '../openLinks'
 import { NetworkMonitor } from '../network/interfaces'
-import { getWindowsDoctorReport } from '../network/windowsDoctor'
+import { applyWindowsDoctorFix, getWindowsDoctorReport } from '../network/windowsDoctor'
 import { SpeedComparisonManager } from '../network/speedComparison'
 import { loadSettings, saveSettings } from '../settings'
 import { showUpdateMenu, updateState } from '../updater'
@@ -254,6 +254,8 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): Down
   handle('getNetworkDoctorReport', async (_event, force) =>
     getWindowsDoctorReport(networks.current ?? [], force)
   )
+
+  handle('applyNetworkDoctorFix', async (_event, fix) => applyWindowsDoctorFix(fix))
 
   const speedComparisonManager = new SpeedComparisonManager()
 

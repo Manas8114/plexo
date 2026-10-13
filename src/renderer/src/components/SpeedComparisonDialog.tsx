@@ -15,6 +15,7 @@ import {
   RefreshCw,
   Square,
   Wifi,
+  X,
   XCircle,
   Zap
 } from 'lucide-react'
@@ -152,26 +153,46 @@ export function SpeedComparisonDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-h-[88vh] sm:max-w-xl overflow-hidden flex flex-col p-0 gap-0">
+      <DialogContent
+        showCloseButton={false}
+        className="max-h-[88vh] sm:max-w-xl overflow-hidden flex flex-col p-0 gap-0"
+      >
         <DialogHeader className="border-b border-border px-5 py-4">
-          <div className="flex items-center justify-between pr-6">
-            <div className="flex items-center gap-2">
-              <Gauge className="size-4 text-primary" />
-              <DialogTitle className="text-base font-semibold">Compare Network Speeds</DialogTitle>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <Gauge className="size-4 text-primary shrink-0" />
+              <DialogTitle className="text-base font-semibold truncate">
+                Compare Network Speeds
+              </DialogTitle>
             </div>
-            {report && !running && (
+            <div className="flex items-center gap-1 shrink-0">
+              {report && !running && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={handleStart}
+                  title="Run test again"
+                  aria-label="Run test again"
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <RefreshCw className="size-4" />
+                </Button>
+              )}
               <Button
                 type="button"
                 variant="ghost"
-                size="icon-xs"
-                onClick={handleStart}
-                title="Run test again"
+                size="icon-sm"
+                onClick={() => handleOpenChange(false)}
+                title="Close"
+                aria-label="Close"
+                className="text-muted-foreground hover:text-foreground"
               >
-                <RefreshCw className="size-3.5" />
+                <X className="size-4" />
               </Button>
-            )}
+            </div>
           </div>
-          <DialogDescription className="text-xs text-muted-foreground">
+          <DialogDescription className="text-xs text-muted-foreground mt-0.5">
             Test each network individually, then measure combined throughput to verify
             multi-connection gain.
           </DialogDescription>

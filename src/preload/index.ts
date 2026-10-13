@@ -7,7 +7,8 @@ import type {
   InitialState,
   NetworkInterfaceInfo,
   UpdateState,
-  SpeedComparisonProgress
+  SpeedComparisonProgress,
+  NetworkDoctorFix
 } from '../shared/types'
 
 /** Typed wrapper around ipcRenderer.invoke — the channel name picks its args/result shape out of
@@ -63,6 +64,7 @@ const plexoApi = {
     invoke('resumeFromLink', linkId, downloadId),
   dismissLink: (id: string) => invoke('dismissLink', id),
   getNetworkDoctorReport: (force?: boolean) => invoke('getNetworkDoctorReport', force),
+  applyNetworkDoctorFix: (fix: NetworkDoctorFix) => invoke('applyNetworkDoctorFix', fix),
   startSpeedComparison: (interfaceIds?: string[]) => invoke('startSpeedComparison', interfaceIds),
   cancelSpeedComparison: () => invoke('cancelSpeedComparison'),
 

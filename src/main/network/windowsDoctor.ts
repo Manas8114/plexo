@@ -3,7 +3,9 @@ import { promisify } from 'node:util'
 import type {
   NetworkDoctorIssue,
   NetworkDoctorReport,
-  NetworkInterfaceInfo
+  NetworkInterfaceInfo,
+  NetworkDoctorFix,
+  NetworkDoctorApplyFixResult
 } from '../../shared/types'
 
 const execFileAsync = promisify(execFile)
@@ -139,6 +141,8 @@ export function diagnoseWindowsNetwork({
       id: 'fMinimizeConnections',
       severity: 'warning',
       title: 'Windows may disconnect Wi-Fi when tethering is connected',
+      summary:
+        'Windows is configured to disconnect Wi-Fi when phone tethering or Ethernet is connected. Enabling simultaneous connections keeps both active.',
       detail:
         `Windows policy "fMinimizeConnections" is active (value: ${regData.value}). ` +
         `This policy causes Windows to minimize simultaneous connections, which often forces Wi-Fi offline ` +
@@ -148,7 +152,14 @@ export function diagnoseWindowsNetwork({
         '• Windows Pro/Enterprise: Open gpedit.msc → Computer Configuration → Administrative Templates → Network → Windows Connection Manager → disable "Minimize the number of simultaneous connections..."\n' +
         '• Windows Home: Run in an elevated prompt:\n' +
         '  reg add "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WcmSvc\\GroupPolicy" /v fMinimizeConnections /t REG_DWORD /d 0 /f\n' +
-        '  (Then restart your computer or reconnect network adapters).'
+        '  (Then restart your computer or reconnect network adapters).',
+      fix: {
+        action: 'system',
+        type: 'enableSimultaneousConnections',
+        label: 'Allow Simultaneous Connections',
+        description:
+          'Set the Windows policy (fMinimizeConnections = 0) so Wi-Fi stays connected when your phone tether or cable is plugged in.'
+      }
     })
   } else if (!regData.exists) {
     const domainNote = isDomain
@@ -158,12 +169,21 @@ export function diagnoseWindowsNetwork({
       id: 'fMinimizeConnections',
       severity: 'info',
       title: 'Simultaneous connection policy is unconfigured (default)',
+      summary:
+        'Windows defaults to managing network connections automatically and may disconnect Wi-Fi when tethering. You can set this policy to ensure Wi-Fi stays active.',
       detail:
         `The "fMinimizeConnections" policy is not explicitly set in the registry. By default, Windows Connection Manager ` +
         `may still disconnect Wi-Fi when a wired or mobile tether adapter is connected.${domainNote}`,
       recommendation:
         'If Wi-Fi drops when you plug in your phone tether, set fMinimizeConnections to 0:\n' +
-        '  reg add "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WcmSvc\\GroupPolicy" /v fMinimizeConnections /t REG_DWORD /d 0 /f'
+        '  reg add "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WcmSvc\\GroupPolicy" /v fMinimizeConnections /t REG_DWORD /d 0 /f',
+      fix: {
+        action: 'system',
+        type: 'enableSimultaneousConnections',
+        label: 'Enable Simultaneous Connections',
+        description:
+          'Explicitly configure Windows policy (fMinimizeConnections = 0) so Wi-Fi and mobile tether stay active together.'
+      }
     })
   }
 
@@ -245,6 +265,7 @@ export function diagnoseWindowsNetwork({
         id: 'defaultRoute',
         severity: 'info',
         title: `Default internet route owned by ${defaultRoute.alias} (metric: ${defaultRoute.totalMetric})`,
+        summary: `Windows is routing general web browsing through "${defaultRoute.alias}". If this is your phone hotspot, it may consume your mobile data.`,
         detail:
           `Windows sends unpinned default traffic (such as system updates and web browsing) through ` +
           `"${defaultRoute.alias}" because its metric (${defaultRoute.totalMetric}) is lower than Wi-Fi ` +
@@ -255,7 +276,18 @@ export function diagnoseWindowsNetwork({
             ? `To prioritize Wi-Fi for general traffic while still combining both in Plexo, set the tether metric higher in an elevated PowerShell:\n` +
               `  Set-NetIPInterface -InterfaceIndex ${defaultRoute.index} -AutomaticMetric Disabled -InterfaceMetric 500`
             : undefined,
-        interfaceName: defaultRoute.alias
+        interfaceName: defaultRoute.alias,
+        interfaceIndex: defaultRoute.index,
+        fix:
+          defaultRoute.index !== undefined
+            ? {
+                action: 'system',
+                type: 'setInterfaceMetric',
+                label: 'Prioritize Wi-Fi for General Apps',
+                description: `Set the route metric on "${defaultRoute.alias}" so general apps prefer Wi-Fi, while Plexo continues to combine both for fast downloads.`,
+                interfaceIndex: defaultRoute.index
+              }
+            : undefined
       })
     }
   }
@@ -277,6 +309,7 @@ export function diagnoseWindowsNetwork({
           id: 'subnetOverlap',
           severity: 'warning',
           title: `Subnet overlap: "${a.displayName}" and "${b.displayName}"`,
+          summary: `Both "${a.displayName}" and "${b.displayName}" use the same IP address range (${common}). Change your hotspot or router settings so they don't conflict.`,
           detail:
             `Both "${a.displayName}" and "${b.displayName}" are assigned IP addresses in the same subnet (${common}). ` +
             `This happens when a phone tether and local Wi-Fi router share identical private subnet ranges (e.g. 192.168.1.0/24). ` +
@@ -296,10 +329,19 @@ export function diagnoseWindowsNetwork({
         id: 'apipa',
         severity: 'warning',
         title: `APIPA self-assigned IP on "${iface.displayName}"`,
+        summary: `"${iface.displayName}" has a self-assigned IP address and cannot connect to the internet. Keep it unselected in Plexo.`,
         detail: `Adapter "${iface.displayName}" has an APIPA address (169.254.x.x) and cannot communicate with the internet.`,
         recommendation:
           'Check cable connection or DHCP router configuration. This adapter should remain unselected in Plexo.',
-        interfaceName: iface.displayName
+        interfaceName: iface.displayName,
+        interfaceId: iface.id,
+        fix: {
+          action: 'plexo',
+          type: 'disableInPlexo',
+          label: 'Turn Off in Plexo',
+          description: `Turn off "${iface.displayName}" in Plexo so it is not used for downloads.`,
+          interfaceId: iface.id
+        }
       })
     }
 
@@ -318,12 +360,21 @@ export function diagnoseWindowsNetwork({
         id: 'noGateway',
         severity: 'warning',
         title: `No default gateway on "${iface.displayName}"`,
+        summary: `"${iface.displayName}" has no internet gateway. Plexo cannot route downloads through it alone.`,
         detail:
           `Adapter "${iface.displayName}" has an IP address but no default route (0.0.0.0/0) to the internet. ` +
           `Plexo cannot route downloads through this adapter alone.`,
         recommendation:
           'Ensure this network adapter is connected to a router with internet access, or leave it unselected in Plexo.',
-        interfaceName: iface.displayName
+        interfaceName: iface.displayName,
+        interfaceId: iface.id,
+        fix: {
+          action: 'plexo',
+          type: 'disableInPlexo',
+          label: 'Turn Off in Plexo',
+          description: `Turn off "${iface.displayName}" in Plexo so downloads are not attempted through it.`,
+          interfaceId: iface.id
+        }
       })
     }
   }
@@ -335,16 +386,28 @@ export function diagnoseWindowsNetwork({
       ad.Virtual === true ||
       VIRTUAL_REGEX.test((ad.InterfaceDescription || '') + ' ' + (ad.Name || ''))
     if (isVirtual && ad.Name) {
+      const matchedIface = interfaces.find((i) => i.displayName === ad.Name || i.device === ad.Name)
       issues.push({
         id: 'virtualAdapter',
         severity: 'info',
         title: `Virtual or VPN adapter: "${ad.Name}"`,
+        summary: `"${ad.Name}" is a virtual network (VPN/WSL) sharing your existing connection. Keep it unselected in Plexo to avoid duplicating traffic.`,
         detail:
           `Adapter "${ad.Name}" (${ad.InterfaceDescription || 'Virtual'}) is a tunnel or virtual network. ` +
           `Virtual adapters route through existing physical interfaces and do not provide an independent internet uplink.`,
         recommendation:
           'Keep this adapter unselected in Plexo to avoid duplicating traffic across the same physical connection.',
-        interfaceName: ad.Name
+        interfaceName: ad.Name,
+        interfaceId: matchedIface?.id,
+        fix: matchedIface
+          ? {
+              action: 'plexo',
+              type: 'disableInPlexo',
+              label: 'Turn Off in Plexo',
+              description: `Turn off "${ad.Name}" in Plexo so downloads only use your physical network adapters.`,
+              interfaceId: matchedIface.id
+            }
+          : undefined
       })
     }
   }
@@ -456,4 +519,57 @@ export async function getWindowsDoctorReport(
     })
 
   return inFlightScan
+}
+
+/**
+ * Executes an automated fix for a detected Windows Network Doctor issue with elevation.
+ * Runs with elevated privileges via PowerShell Start-Process -Verb RunAs.
+ */
+export async function applyWindowsDoctorFix(
+  fix: NetworkDoctorFix
+): Promise<NetworkDoctorApplyFixResult> {
+  if (process.platform !== 'win32') {
+    return { success: false, error: 'Applicable only to Windows operating systems.' }
+  }
+
+  try {
+    if (fix.type === 'enableSimultaneousConnections') {
+      const psCmd =
+        "Start-Process reg.exe -ArgumentList @('add', 'HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WcmSvc\\GroupPolicy', '/v', 'fMinimizeConnections', '/t', 'REG_DWORD', '/d', '0', '/f') -Verb RunAs -WindowStyle Hidden -Wait"
+
+      await execFileAsync(
+        'powershell.exe',
+        ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', psCmd],
+        { windowsHide: true, timeout: 30000, encoding: 'utf8' }
+      )
+
+      cachedReport = null
+      return { success: true }
+    }
+
+    if (fix.type === 'setInterfaceMetric') {
+      if (typeof fix.interfaceIndex !== 'number' || fix.interfaceIndex < 0) {
+        return { success: false, error: 'Invalid network interface index.' }
+      }
+
+      const psCmd = `Start-Process powershell.exe -ArgumentList @('-NoProfile', '-NonInteractive', '-Command', "Set-NetIPInterface -InterfaceIndex ${fix.interfaceIndex} -AutomaticMetric Disabled -InterfaceMetric 500") -Verb RunAs -WindowStyle Hidden -Wait`
+
+      await execFileAsync(
+        'powershell.exe',
+        ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', psCmd],
+        { windowsHide: true, timeout: 30000, encoding: 'utf8' }
+      )
+
+      cachedReport = null
+      return { success: true }
+    }
+
+    return { success: false, error: 'Unknown fix type requested.' }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err)
+    if (message.includes('canceled by the user') || message.includes('1223')) {
+      return { success: false, error: 'Permission was cancelled. No changes were made.' }
+    }
+    return { success: false, error: message }
+  }
 }

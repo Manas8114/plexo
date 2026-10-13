@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
+  applyWindowsDoctorFix,
   computeIpv4Subnet,
   diagnoseWindowsNetwork,
   getWindowsDoctorReport,
@@ -563,4 +564,121 @@ test('getWindowsDoctorReport respects caching and force rescan', async () => {
   const report3 = await getWindowsDoctorReport(ifaces, true)
   assert.ok(report3)
   assert.equal(typeof report3.timestamp, 'number')
+})
+
+// --- 4. User-Friendly Summaries & Automated Fix Metadata Tests ---
+
+test('diagnoseWindowsNetwork attaches plain English summaries and fix metadata for fMinimizeConnections', () => {
+  const psData: RawPowerShellDoctorData = {
+    adapters: [],
+    ipInterfaces: [],
+    routes: [],
+    domain: false
+  }
+  const regData = { exists: true, value: 1 }
+  const report = diagnoseWindowsNetwork({ psData, regData, interfaces: [] })
+
+  const issue = report.issues.find((i) => i.id === 'fMinimizeConnections')
+  assert.ok(issue)
+  assert.ok(issue.summary && issue.summary.includes('disconnect Wi-Fi'))
+  assert.equal(issue.fix?.action, 'system')
+  assert.equal(issue.fix?.type, 'enableSimultaneousConnections')
+  assert.equal(issue.fix?.label, 'Allow Simultaneous Connections')
+})
+
+test('diagnoseWindowsNetwork attaches route priority fix and summary for defaultRoute', () => {
+  const psData: RawPowerShellDoctorData = {
+    adapters: [
+      { Name: 'Wi-Fi', InterfaceIndex: 10, NdisPhysicalMedium: 9, Status: 'Up' },
+      { Name: 'Phone Tether', InterfaceIndex: 20, NdisPhysicalMedium: 0, Status: 'Up' }
+    ],
+    ipInterfaces: [
+      { InterfaceAlias: 'Wi-Fi', InterfaceIndex: 10, InterfaceMetric: 35 },
+      { InterfaceAlias: 'Phone Tether', InterfaceIndex: 20, InterfaceMetric: 5 }
+    ],
+    routes: [
+      { InterfaceAlias: 'Phone Tether', InterfaceIndex: 20, RouteMetric: 0 },
+      { InterfaceAlias: 'Wi-Fi', InterfaceIndex: 10, RouteMetric: 0 }
+    ],
+    domain: false
+  }
+  const regData = { exists: true, value: 0 }
+  const interfaces: NetworkInterfaceInfo[] = [
+    { id: 'wifi', device: 'Wi-Fi', displayName: 'Wi-Fi', addresses: [], kind: 'wifi' },
+    {
+      id: 'tether',
+      device: 'Phone Tether',
+      displayName: 'Phone Tether',
+      addresses: [],
+      kind: 'usb'
+    }
+  ]
+
+  const report = diagnoseWindowsNetwork({ psData, regData, interfaces })
+  const issue = report.issues.find((i) => i.id === 'defaultRoute')
+  assert.ok(issue)
+  assert.ok(issue.summary && issue.summary.includes('mobile data'))
+  assert.equal(issue.fix?.action, 'system')
+  assert.equal(issue.fix?.type, 'setInterfaceMetric')
+  assert.equal(issue.fix?.interfaceIndex, 20)
+  assert.equal(issue.interfaceIndex, 20)
+})
+
+test('diagnoseWindowsNetwork attaches disableInPlexo fix for virtual adapter and apipa', () => {
+  const psData: RawPowerShellDoctorData = {
+    adapters: [
+      {
+        Name: 'Tailscale',
+        InterfaceDescription: 'Tailscale Tunnel',
+        InterfaceIndex: 10,
+        Virtual: true,
+        Status: 'Up'
+      }
+    ],
+    ipInterfaces: [],
+    routes: [],
+    domain: false
+  }
+  const regData = { exists: true, value: 0 }
+  const interfaces: NetworkInterfaceInfo[] = [
+    { id: 'ts-id', device: 'Tailscale', displayName: 'Tailscale', addresses: [], kind: 'other' },
+    {
+      id: 'apipa-id',
+      device: 'Ethernet',
+      displayName: 'Local Cable',
+      addresses: [{ address: '169.254.1.2', family: 4 }],
+      kind: 'ethernet'
+    }
+  ]
+
+  const report = diagnoseWindowsNetwork({ psData, regData, interfaces })
+  const virtualIssue = report.issues.find((i) => i.id === 'virtualAdapter')
+  assert.ok(virtualIssue)
+  assert.equal(virtualIssue.fix?.action, 'plexo')
+  assert.equal(virtualIssue.fix?.type, 'disableInPlexo')
+  assert.equal(virtualIssue.fix?.interfaceId, 'ts-id')
+
+  const apipaIssue = report.issues.find((i) => i.id === 'apipa')
+  assert.ok(apipaIssue)
+  assert.equal(apipaIssue.fix?.action, 'plexo')
+  assert.equal(apipaIssue.fix?.type, 'disableInPlexo')
+  assert.equal(apipaIssue.fix?.interfaceId, 'apipa-id')
+})
+
+test('applyWindowsDoctorFix validates interfaceIndex for setInterfaceMetric', async () => {
+  const result = await applyWindowsDoctorFix({
+    type: 'setInterfaceMetric',
+    interfaceIndex: -1
+  })
+  assert.equal(result.success, false)
+  assert.ok(result.error?.includes('Invalid network interface index'))
+})
+
+test('applyWindowsDoctorFix rejects unknown fix types', async () => {
+  const result = await applyWindowsDoctorFix({
+    // @ts-expect-error test invalid type
+    type: 'invalidType'
+  })
+  assert.equal(result.success, false)
+  assert.ok(result.error?.includes('Unknown fix type'))
 })

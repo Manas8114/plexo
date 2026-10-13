@@ -36,6 +36,7 @@ export const IpcChannels = {
   updateStateChanged: 'update:state-changed',
   showUpdateMenu: 'update:show-menu',
   getNetworkDoctorReport: 'network:doctor-report',
+  applyNetworkDoctorFix: 'network:apply-doctor-fix',
   startSpeedComparison: 'speed:start-comparison',
   cancelSpeedComparison: 'speed:cancel-comparison',
   speedComparisonProgress: 'speed:comparison-progress'

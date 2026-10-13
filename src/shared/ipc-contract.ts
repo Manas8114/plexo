@@ -9,6 +9,8 @@ import type {
   TorrentFileEntry,
   UpdateState,
   NetworkDoctorReport,
+  NetworkDoctorFix,
+  NetworkDoctorApplyFixResult,
   SpeedComparisonReport
 } from './types'
 
@@ -68,8 +70,10 @@ export interface IpcContract {
   resumeFromLink: { args: [linkId: string, downloadId: string]; result: void }
   /** Forgets the sign-in of a link that won't be started. */
   dismissLink: { args: [id: string]; result: void }
-  /** Read-only Windows Network Doctor diagnostic report. */
+  /** Windows Network Doctor diagnostic report. */
   getNetworkDoctorReport: { args: [force?: boolean]; result: NetworkDoctorReport }
+  /** Apply automated fix for a detected Windows Network Doctor issue with consent. */
+  applyNetworkDoctorFix: { args: [fix: NetworkDoctorFix]; result: NetworkDoctorApplyFixResult }
   /** Compare individual and combined network download speeds. */
   startSpeedComparison: { args: [interfaceIds?: string[]]; result: SpeedComparisonReport }
   /** Cancel an in-progress speed comparison. */

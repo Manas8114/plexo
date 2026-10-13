@@ -381,6 +381,16 @@ export interface InitialState {
   isWindows?: boolean
 }
 
+export interface NetworkDoctorFix {
+  type: 'enableSimultaneousConnections' | 'setInterfaceMetric'
+  interfaceIndex?: number
+}
+
+export interface NetworkDoctorApplyFixResult {
+  success: boolean
+  error?: string
+}
+
 export interface NetworkDoctorIssue {
   id:
     | 'fMinimizeConnections'
@@ -392,8 +402,19 @@ export interface NetworkDoctorIssue {
   severity: 'warning' | 'info'
   title: string
   detail: string
+  summary?: string
   recommendation?: string
   interfaceName?: string
+  interfaceIndex?: number
+  interfaceId?: string
+  fix?: {
+    action: 'system' | 'plexo'
+    type: 'enableSimultaneousConnections' | 'setInterfaceMetric' | 'disableInPlexo'
+    label: string
+    description: string
+    interfaceIndex?: number
+    interfaceId?: string
+  }
 }
 
 export interface NetworkDoctorReport {
