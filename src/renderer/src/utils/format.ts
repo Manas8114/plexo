@@ -254,9 +254,12 @@ export function toDisplayPath(path: string, homeDir: string): string {
 
 export { describeError } from '@shared/errors'
 
-const LINK_REFUSED = /status (401|403|404|410) for range request/
+const LINK_REFUSED = /status (401|403|404|410|416) for range request/
 
-/** A download whose link the server now refuses: a fresh link to the same file picks it up. */
+/** A download whose link the server now refuses: a fresh link to the same file picks it up.
+ * 416 (Range Not Satisfiable) belongs here too: the server is saying the byte range this
+ * download was resuming no longer exists, same as a 404/410 — retrying the same range would
+ * just repeat the same 416 forever. */
 export function linkExpired(download: DownloadState): boolean {
   return (
     download.kind === 'http' &&
