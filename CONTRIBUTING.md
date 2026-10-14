@@ -7,19 +7,35 @@ Thanks for taking a look at Plexo. It's a small project, so the process is inten
 ```bash
 git clone https://github.com/anmolkapil/plexo.git
 cd plexo
-npm install
+npm ci
 npm run dev
 ```
 
-Requires Node.js 22.12+ and npm 9+, on Windows, macOS, or Linux.
+Requires Node.js 22.13+ and npm 9+, on Windows, macOS, or Linux.
 
 ## Packaging
 
-- **macOS**: `npm run build:mac` writes `dist/mac/Plexo.app`. A build made on your own Mac isn't quarantined, so it opens without the first-launch step.
-- **Windows**: `npm run build:win`, from PowerShell, writes the installer to `dist/`. For an app you run without installing, use `npm run build:unpack` and open `dist/win-unpacked/plexo.exe`.
-- **Linux**: `npm run build:linux` writes the AppImage and `.deb` packages to `dist/`
+Run packaging commands on the corresponding operating system. Packages are written to `dist/`.
 
-Local builds are unsigned.
+- **macOS**: `npm run build:mac` creates Intel and Apple silicon `.dmg` and `.zip` packages. Unpacked apps are in `dist/mac/Plexo.app` and `dist/mac-arm64/Plexo.app`.
+- **Windows**: `npm run build:win` creates one installer for x64 and ARM64. `npm run build:unpack` creates an unpacked app for the current architecture; run `dist/win-unpacked/plexo.exe`.
+- **Linux**: `npm run build:linux` creates AppImage, `.deb` and `.rpm` packages for x86_64 and ARM64. RPM packaging requires `rpmbuild`; the release workflow installs it through the `rpm` package.
+
+Local builds are unsigned unless signing credentials are configured.
+
+## Browser extension
+
+Build both browser variants:
+
+```bash
+npm run build:extension
+```
+
+For Chrome, enable **Developer mode** at `chrome://extensions`, choose **Load unpacked**, and select `extension/dist/chrome`.
+
+For Firefox, open `about:debugging#/runtime/this-firefox`, choose **Load Temporary Add-on**, and select `extension/dist/firefox/manifest.json`. Temporary add-ons are removed when Firefox restarts.
+
+Keep Plexo running to test download capture. Rebuild and reload the extension after changing its source.
 
 ## Before opening a PR
 
@@ -38,10 +54,16 @@ Please describe how you checked your change manually (which URL/file size/interf
 
 ## End-to-end tests
 
+On Linux, Electron needs a display even when the test window is hidden. In a headless environment, install Xvfb and run:
+
+```bash
+xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x24 -noreset" npm run test:e2e:smoke
+```
+
 `e2e/` drives the real built app through the same `window.plexo` API the renderer uses, against a local test server that can drop, stall, corrupt or hold any response at an exact byte. Every test also runs automatic checks: a `completed` download must match the source byte for byte, and anything else must leave no file, part files or open handles behind. The app's window stays hidden while tests run.
 
 ```bash
-npm run test:e2e:smoke          # what CI runs on every PR (~1 min)
+npm run test:e2e:smoke          # smoke tests run on every PR
 npm run test:e2e                # everything, including @disk and @chaos
 PLEXO_CHAOS_RUNS=50 npx playwright test e2e/chaos.spec.ts   # more random sequences
 PLEXO_CHAOS_SEED=<seed> npx playwright test e2e/chaos.spec.ts  # replay a chaos failure
@@ -58,7 +80,7 @@ Tests build the app first; set `PLEXO_E2E_SKIP_BUILD=1` when `out/` is already f
 
 ## Releasing
 
-A release ships seven files: `Plexo` for macOS (Apple silicon and Intel `.dmg`), Windows (one installer for x64 and ARM64) and Linux (`AppImage` and `.deb`, x86_64 and ARM64). The download page (`docs/`, served by GitHub Pages) reads them from the latest GitHub Release and labels each one from its file name (`docs/downloads.js`), so keep the naming in `electron-builder.yml` intact.
+A release ships Plexo for macOS (Apple silicon and Intel `.dmg`), Windows (one installer for x64 and ARM64) and Linux (AppImage, `.deb` and `.rpm`, x86_64 and ARM64). The download page (`docs/`, served by GitHub Pages) reads them from the latest GitHub Release and labels each one from its file name (`docs/downloads.js`), so keep the naming in `electron-builder.yml` intact.
 
 First bump the version and add its entry at the top of `docs/changelog.js`, in one PR. The entry becomes the release notes, and a tag without one stops before building.
 
