@@ -64,6 +64,15 @@ test.describe('what each state offers', () => {
     expect(ids([item])).toEqual(['fix', 'copy', 'remove'])
   })
 
+  test('failed with a range no longer satisfiable can be fixed', () => {
+    const item = download({
+      status: 'error',
+      error: 'Server answered with status 416 for range request'
+    })
+    expect(failureAction(item as DownloadState)).toBe('fix')
+    expect(ids([item])).toEqual(['fix', 'copy', 'remove'])
+  })
+
   test('failed with nothing to resume starts over', () => {
     expect(ids([download({ status: 'error', error: 'reset', resumable: false })])).toEqual([
       'again',
