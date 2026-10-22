@@ -21,6 +21,7 @@ import { DownloadManager } from '../download/downloadManager'
 import { getDefaultDownloadsDir, getHomeDir } from '../download/paths'
 import { listHistory } from '../download/history'
 import { probeUrl } from '../download/probe'
+import { onMagnetCheckStatus } from '../download/torrent/metadata'
 import { deviceBindingSupported } from '../network/deviceBinding'
 import { pendingLink, pendingLinks, releaseLink } from '../openLinks'
 import { NetworkMonitor } from '../network/interfaces'
@@ -161,6 +162,11 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): Down
   })
 
   handle('probeUrl', async (_event, url) => probeUrl(url))
+  onMagnetCheckStatus((status) => {
+    const window = getWindow()
+    if (window && !window.isDestroyed())
+      window.webContents.send(IpcChannels.magnetCheckStatus, status)
+  })
 
   handle('chooseDestinationFolder', async (_event, defaultPath) => {
     const window = getWindow()

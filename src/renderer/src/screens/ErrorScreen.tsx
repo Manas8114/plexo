@@ -7,6 +7,7 @@ import {
   describeError,
   fileExtensionBadge,
   formatBytes,
+  formatPercent,
   isFolder,
   wantedBytes
 } from '../utils/format'
@@ -15,9 +16,7 @@ export function ErrorScreen({ download }: { download: DownloadState }): React.JS
   const [copied, setCopied] = useState(false)
   const cancelled = download.status === 'cancelled'
   const knownSize = download.totalBytes > 0
-  const percent = knownSize
-    ? Math.min(100, Math.round((download.bytesDownloaded / wantedBytes(download)) * 100))
-    : 0
+  const percent = knownSize ? formatPercent(download.bytesDownloaded, wantedBytes(download)) : 0
   const heading = cancelled ? 'Download cancelled' : 'Download failed'
   const description = cancelled
     ? 'The download was stopped before finishing.'

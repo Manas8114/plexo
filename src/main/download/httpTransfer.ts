@@ -717,6 +717,7 @@ export class HttpTransfer implements Transfer {
         browser: this.runtime.requestPayload.browser,
         rangeStart: block.rangeStart + attempt.startOffset,
         rangeEnd: block.rangeEnd,
+        wholeFile: !this.runtime.requestPayload.supportsRanges,
         connection: self.connection,
         createDestination: () =>
           this.runtime.file.writer(block.rangeStart + (attempt.startOffset ?? 0)),

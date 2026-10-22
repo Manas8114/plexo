@@ -139,13 +139,19 @@ test('showing a file that has moved says so in a dialog, not on the page', async
   const complete = await plexo.waitForStatus('completed')
   const { rename } = await import('node:fs/promises')
   const page = plexo.page
+  // The window lists history again just after a download finishes and whenever it's focused,
+  // checking each file. Move the file only once that listing is in (there are finished ones to
+  // clear) and the menu is open, so neither can see it gone first.
+  await expect(page.getByRole('button', { name: 'Clear finished list', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: `Open ${complete.fileName}`, exact: true }).click({
+    button: 'right'
+  })
+  const showIn = page.getByRole('menuitem', { name: /^Show in/ })
+  await expect(showIn).toBeVisible()
   // The window hasn't been told yet, so the menu still offers it.
   await rename(complete.destinationPath, `${complete.destinationPath}.moved`)
   try {
-    await page.getByRole('button', { name: `Open ${complete.fileName}`, exact: true }).click({
-      button: 'right'
-    })
-    await page.getByRole('menuitem', { name: /^Show in/ }).click()
+    await showIn.click()
     const dialog = page.getByRole('alertdialog')
     await expect(dialog.getByText('Couldn’t show file', { exact: true })).toBeVisible()
     await expect(dialog.getByText('That file is no longer where it was saved.')).toBeVisible()

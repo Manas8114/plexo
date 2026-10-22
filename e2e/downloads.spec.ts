@@ -467,6 +467,8 @@ test.describe('the download page', () => {
           }
         })
       })
+      // The visitor is on a Mac, so the Linux panel starts hidden behind its tab.
+      await page.getByRole('tab', { name: 'Linux' }).click()
       await page.locator('#panel-linux summary').click()
       const button = page.locator('#panel-linux .copy-command').first()
       const status = page.locator('#panel-linux .command-status').first()
@@ -493,6 +495,8 @@ test.describe('the download page', () => {
   test('failed or unavailable clipboard access offers manual copying', async () => {
     const { page, close } = await openPage(BROWSERS.chromeMac)
     try {
+      // The visitor is on a Mac, so the Linux panel starts hidden behind its tab.
+      await page.getByRole('tab', { name: 'Linux' }).click()
       await page.locator('#panel-linux summary').click()
       for (const unavailable of [false, true]) {
         await page.evaluate((missing) => {

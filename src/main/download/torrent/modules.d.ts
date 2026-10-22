@@ -5,7 +5,8 @@ declare module 'webtorrent' {
   import type { Socket } from 'node:net'
 
   export interface ClientOptions {
-    dht?: boolean
+    /** Off, on, or on and started from these nodes ("host:port") instead of the internet's. */
+    dht?: boolean | { bootstrap?: string[] }
     lsd?: boolean
     utp?: boolean
     natUpnp?: boolean
@@ -80,6 +81,12 @@ declare module 'webtorrent' {
     constructor(options?: ClientOptions)
     maxConns: number
     destroyed: boolean
+    /** Its DHT (bittorrent-dht); false when turned off. `lookup` searches it for a torrent's
+     * peers again, handing them to the torrent; it returns a function that stops the search. */
+    dht:
+      | (EventEmitter & { lookup(infoHash: string, callback?: () => void): () => void })
+      | false
+      | null
     torrents: Torrent[]
     add(torrentId: string | Uint8Array, options?: AddOptions): Torrent
     seed(
@@ -117,6 +124,10 @@ declare module 'parse-torrent' {
     length?: number
     pieceLength?: number
     files?: { path: string; name: string; length: number; offset: number }[]
+    /** A magnet link's trackers (tr), peers (x.pe) and .torrent sources (xs). */
+    announce?: string[]
+    peerAddresses?: string[]
+    xs?: string | string[]
   }
   export default function parseTorrent(torrentId: string | Uint8Array): Promise<ParsedTorrent>
 }

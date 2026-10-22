@@ -5,6 +5,7 @@ import type {
   AppSettings,
   DownloadUpdate,
   InitialState,
+  MagnetCheckStatus,
   NetworkInterfaceInfo,
   UpdateState,
   SpeedComparisonProgress,
@@ -108,6 +109,10 @@ const plexoApi = {
       callback(progress)
     ipcRenderer.on(IpcChannels.speedComparisonProgress, listener)
     return () => ipcRenderer.removeListener(IpcChannels.speedComparisonProgress, listener)
+  onMagnetCheckStatus: (callback: (status: MagnetCheckStatus) => void): (() => void) => {
+    const listener = (_event: IpcRendererEvent, status: MagnetCheckStatus): void => callback(status)
+    ipcRenderer.on(IpcChannels.magnetCheckStatus, listener)
+    return () => ipcRenderer.removeListener(IpcChannels.magnetCheckStatus, listener)
   }
 }
 

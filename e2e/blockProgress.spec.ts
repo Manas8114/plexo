@@ -1,6 +1,6 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { expect, test } from '@playwright/test'
 import fc from 'fast-check'
 import { advanceBlock, retractBlock } from '../src/main/download/blockProgress'
@@ -97,6 +97,22 @@ test.describe('destination-side staging file', () => {
     expect(await readFile(`${second}.plexo`)).toHaveLength(0)
     await expect(readFile(first)).rejects.toMatchObject({ code: 'ENOENT' })
     await expect(readFile(second)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  test('a long name with a dot early in it is shortened, not refused', async () => {
+    for (const name of [
+      `St. Louis Cardinals vs Chicago Cubs full game replay ${'x'.repeat(200)}`,
+      `1. ${'漢'.repeat(85)}`
+    ]) {
+      const first = await reserveDestinationPath(dir, name)
+      const second = await reserveDestinationPath(dir, name)
+      expect(Buffer.byteLength(`${basename(first)}.plexo`)).toBeLessThanOrEqual(255)
+      expect(basename(second)).toBe(`${basename(first)} (1)`)
+      expect(name.startsWith(basename(first))).toBe(true)
+    }
+    // A real extension still stays last.
+    const video = await reserveDestinationPath(dir, `${'a'.repeat(300)}.mkv`)
+    expect(basename(video)).toMatch(/^a+\.mkv$/)
   })
 
   test('out-of-order ranges and a racing hedge produce one exact file', async () => {

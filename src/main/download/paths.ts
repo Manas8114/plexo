@@ -15,6 +15,10 @@ export function getHomeDir(): string {
 // (or if something outside the app is creating them as fast as we try).
 const MAX_NAME_ATTEMPTS = 10_000
 
+// Longer than any real extension. Past this, what follows the last dot is part of a title
+// ("St. Louis Cardinals vs Chicago Cubs full game replay…"), shortened along with the rest.
+const MAX_EXTENSION_BYTES = 32
+
 export async function pathExists(path: string): Promise<boolean> {
   try {
     await lstat(path)
@@ -61,9 +65,9 @@ async function claimName(
 ): Promise<string> {
   await ensureDirectory(directory)
   name = sanitizeFileName(name)
-  const ext = extension ? extname(name) : ''
+  let ext = extension ? extname(name) : ''
+  if (Buffer.byteLength(ext) > MAX_EXTENSION_BYTES) ext = ''
   const maxBaseBytes = 255 - Buffer.byteLength(` (9999)${suffix}`) - Buffer.byteLength(ext)
-  if (maxBaseBytes <= 0) throw new Error('The file extension is too long')
   const baseCharacters = Array.from(ext ? basename(name, ext) : name)
   while (Buffer.byteLength(baseCharacters.join('')) > maxBaseBytes) baseCharacters.pop()
   const base = baseCharacters.join('')

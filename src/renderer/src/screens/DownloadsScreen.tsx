@@ -320,24 +320,20 @@ export function DownloadsScreen(): React.JSX.Element {
                 )}
               </div>
               {group.items.map((item) => (
-                <DownloadContextMenu
+                <ListedDownload
                   key={item.id}
                   item={item}
+                  now={now}
                   selected={selected.has(item.id)}
-                  chosen={chosen}
-                >
-                  <DownloadRow
-                    item={item}
-                    now={now}
-                    selected={selected.has(item.id)}
-                    networkVisual={
-                      isFinished(item) || item.status === 'completed' ? undefined : networkVisual
-                    }
-                    onSelect={selectRow}
-                    onOpen={openRow}
-                    onPerform={perform}
-                  />
-                </DownloadContextMenu>
+                  // Only a selected row's menu acts on the selection.
+                  chosen={selected.has(item.id) ? chosen : NOT_CHOSEN}
+                  networkVisual={
+                    isFinished(item) || item.status === 'completed' ? undefined : networkVisual
+                  }
+                  onSelect={selectRow}
+                  onOpen={openRow}
+                  onPerform={perform}
+                />
               ))}
             </section>
           )
@@ -412,6 +408,21 @@ function EmptyState(): React.JSX.Element {
     </div>
   )
 }
+
+const NOT_CHOSEN: Item[] = []
+
+/** A row with its right-click menu, memoized as one: a progress update to one download leaves
+ * every other row, menu included, as it was. */
+const ListedDownload = memo(function ListedDownload({
+  chosen,
+  ...row
+}: React.ComponentProps<typeof DownloadRow> & { chosen: Item[] }): React.JSX.Element {
+  return (
+    <DownloadContextMenu item={row.item} selected={row.selected} chosen={chosen}>
+      <DownloadRow {...row} />
+    </DownloadContextMenu>
+  )
+})
 
 const DownloadRow = memo(function DownloadRow({
   item,

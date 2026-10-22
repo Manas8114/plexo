@@ -13,7 +13,11 @@ const UNITS = ['B', 'KB', 'MB', 'GB', 'TB']
 
 export function formatBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
-  let exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), UNITS.length - 1)
+  // Under 1 byte (a slow speed averaged over a few seconds) is still bytes, not a unit below them.
+  let exponent = Math.max(
+    0,
+    Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), UNITS.length - 1)
+  )
   let value = bytes / 1024 ** exponent
   if (exponent < UNITS.length - 1 && Number(value.toFixed(exponent === 0 ? 0 : 1)) >= 1024) {
     exponent += 1
@@ -109,8 +113,9 @@ export function formatSpeedOfLimit(
 
 export function formatEta(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds <= 0) return '—'
-  if (seconds < 60) return `${Math.max(1, Math.ceil(seconds))}s`
-  const totalSec = Math.round(seconds)
+  // Seconds round up, so anything past 59s is a minute: "1m 0s", never "60s".
+  if (Math.ceil(seconds) < 60) return `${Math.max(1, Math.ceil(seconds))}s`
+  const totalSec = Math.max(60, Math.round(seconds))
   const mins = Math.floor(totalSec / 60)
   const secs = totalSec % 60
   if (mins < 60) return `${mins}m ${secs}s`
@@ -137,7 +142,10 @@ export function wantedBytes(download: DownloadState | FinishedDownload): number 
 
 export function formatPercent(bytesDownloaded: number, totalBytes: number): number {
   if (totalBytes <= 0) return 0
-  return Math.min(100, Math.round((bytesDownloaded / totalBytes) * 100))
+  // 100% only once every byte is in: rounding 99.6% up would claim a 10 GB file was done with
+  // 40 MB still to go.
+  if (bytesDownloaded >= totalBytes) return 100
+  return Math.min(99, Math.round((bytesDownloaded / totalBytes) * 100))
 }
 
 export function fileNameFromPath(path: string): string {
@@ -234,6 +242,15 @@ export function groupByNetwork(download: DownloadState): NetworkGroup[] {
  * carried part of the file. */
 export function networksInPlay<T extends DownloadNetwork>(networks: T[]): T[] {
   return networks.filter((network) => network.enabled || network.bytesDownloaded > 0)
+}
+
+/** Whether a network is carrying bytes right now: an HTTP stream fetching, or a torrent peer
+ * receiving. Read from connection status rather than speed, so every view of a download agrees
+ * on which networks are live even between speed samples. */
+export function networkActive(group: NetworkGroup): boolean {
+  return group.transfer === 'http'
+    ? group.streams.some((stream) => stream.status === 'downloading')
+    : group.peers.some((peer) => peer.status === 'receiving')
 }
 
 /** Shortens an absolute path under the user's home directory to a "~/..." form for display. */

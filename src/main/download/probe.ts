@@ -6,6 +6,7 @@ import type { BrowserContext, ProbeResult } from '../../shared/types'
 import { testKnobs } from '../testKnobs'
 import { requestHeaders } from './browserContext'
 import { parseContentDispositionFilename } from './contentDisposition'
+import { normalizeEtag } from './fileVersion'
 import {
   describeTorrent,
   downloadTorrentFile,
@@ -34,11 +35,14 @@ interface ProbeResponse {
 
 /** GET with a small range: cheaper than fetching the body, and unlike HEAD it also tells us (via
  * the 206 status) whether range requests actually work. Not 1 byte: some file hosts answer a range
- * that ends at byte 0 or 1 with the whole file, while serving every real chunk as asked (#101). */
+ * that ends at byte 0 or 1 with the whole file, while serving every real chunk as asked (#101).
+ * `ranged: false` sends a plain GET instead; the body is still dropped once the headers arrive. */
 function requestFirstBytes(
   url: URL,
   deadline: number,
-  browser: BrowserContext | undefined
+  browser: BrowserContext | undefined,
+  ranged: boolean,
+  range = 'bytes=0-1023'
 ): Promise<ProbeResponse> {
   return new Promise((resolve, reject) => {
     const requester = url.protocol === 'https:' ? httpsRequest : httpRequest
@@ -48,7 +52,9 @@ function requestFirstBytes(
         hostname: url.hostname.replace(/^\[|\]$/g, ''),
         port: url.port || undefined,
         path: `${url.pathname}${url.search}`,
-        headers: { ...requestHeaders(url, browser), Range: 'bytes=0-1023' }
+        headers: ranged
+          ? { ...requestHeaders(url, browser), Range: range }
+          : requestHeaders(url, browser)
       },
       (res) => {
         clearTimeout(timer)
@@ -92,11 +98,22 @@ async function requestFollowingRedirects(
   let response: ProbeResponse | null = null
   const deadline = Date.now() + PROBE_TIMEOUT_MS
 
+  let ranged = true
   for (let redirect = 0; redirect <= MAX_REDIRECTS; redirect += 1) {
-    response = await requestFirstBytes(current, deadline, browser)
+    response = await requestFirstBytes(current, deadline, browser, ranged)
+    // Some servers refuse any Range request with 403 while serving the same URL in full (#131).
+    // Ask once more without one: if that works, the file downloads as one stream from byte zero,
+    // which sends no Range either — the same as on a server without range support.
+    if (response.statusCode === 403 && ranged) {
+      ranged = false
+      response = await requestFirstBytes(current, deadline, browser, ranged)
+    }
     if (response.statusCode >= 300 && response.statusCode < 400) {
       const location = headerValue(response.headers, 'location')
       if (!location) break
+      if (redirect === MAX_REDIRECTS) {
+        throw new Error('Too many redirects while checking the link')
+      }
       current = new URL(location, current)
       continue
     }
@@ -104,6 +121,35 @@ async function requestFollowingRedirects(
   }
 
   return { current, response }
+}
+
+/** Whether the server labels each byte range with an ETag of its own (pCloud does, #156): then
+ * no chunk's ETag ever matches the probe's, and every one would be taken for a changed file.
+ * The first range asked again keeps its ETag while the next range gets another. A load balancer
+ * alternating labels per request changes it on the repeat instead, and keeps its ETag checked. */
+async function etagIsPerRange(
+  url: URL,
+  browser: BrowserContext | undefined,
+  first: ProbeResponse
+): Promise<boolean> {
+  const etag = headerValue(first.headers, 'etag')
+  const total = /\/(\d+)$/.exec(headerValue(first.headers, 'content-range') ?? '')?.[1]
+  if (first.statusCode !== 206 || !etag || !total || Number(total) <= 2048) return false
+  const deadline = Date.now() + PROBE_TIMEOUT_MS
+  try {
+    const again = await requestFirstBytes(url, deadline, browser, true)
+    const next = await requestFirstBytes(url, deadline, browser, true, 'bytes=1024-2047')
+    const etagOf = (r: ProbeResponse): string => normalizeEtag(headerValue(r.headers, 'etag') ?? '')
+    return (
+      again.statusCode === 206 &&
+      next.statusCode === 206 &&
+      etagOf(again) === normalizeEtag(etag) &&
+      etagOf(next) !== '' &&
+      etagOf(next) !== normalizeEtag(etag)
+    )
+  } catch {
+    return false
+  }
 }
 
 /** A link the server says is a torrent, or that is named like one. */
@@ -174,6 +220,8 @@ export async function probeUrl(rawUrl: string, browser?: BrowserContext): Promis
     if (contentLength) totalBytes = Number(contentLength)
   }
 
+  const perRange = await etagIsPerRange(current, browser, response)
+
   return {
     kind: 'http',
     requestedUrl: rawUrl,
@@ -182,7 +230,7 @@ export async function probeUrl(rawUrl: string, browser?: BrowserContext): Promis
     totalBytes,
     suggestedFileName: fileNameFromHeaders(response.headers, current),
     contentType: headerValue(response.headers, 'content-type') ?? null,
-    etag: headerValue(response.headers, 'etag') ?? null,
+    etag: perRange ? null : (headerValue(response.headers, 'etag') ?? null),
     lastModified: headerValue(response.headers, 'last-modified') ?? null
   }
 }

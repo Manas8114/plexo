@@ -28,6 +28,7 @@ import {
   formatPercent,
   groupByNetwork,
   isFolder,
+  networkActive,
   networksInPlay,
   toDisplayPath,
   wantedBytes
@@ -100,8 +101,8 @@ function waitingFor(download: DownloadState): string | null {
     : 'Waiting for a network. Reconnect one or switch one on.'
 }
 
-// Memoized: App re-renders on every download's progress, and this one's grid and tables are
-// the heaviest thing on screen. Its download keeps its object until its own update arrives.
+// Memoized: its grid and tables are the heaviest thing on screen, so nothing but its own
+// download's update (which brings a new object) should re-render it.
 export const DownloadingScreen = memo(function DownloadingScreen({
   download
 }: {
@@ -224,7 +225,8 @@ export const DownloadingScreen = memo(function DownloadingScreen({
             networks={groups.map((group, index) => ({
               solid: visuals[index].solid,
               label: visuals[index].name,
-              speedBytesPerSec: isPaused ? 0 : group.speedBytesPerSec
+              speedBytesPerSec: isPaused ? 0 : group.speedBytesPerSec,
+              active: networkActive(group)
             }))}
             paused={isPaused}
           />

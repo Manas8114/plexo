@@ -46,6 +46,14 @@ export interface TorrentProbeResult extends ProbeResultBase {
 
 export type ProbeResult = HttpProbeResult | TorrentProbeResult
 
+/** How the check of a magnet link is going, while it's still going: `noPeersYet` once its first
+ * search came back empty and it's looking a little longer. */
+export interface MagnetCheckStatus {
+  /** The link as it was given to probeUrl. */
+  link: string
+  noPeersYet: boolean
+}
+
 export interface TorrentInfo {
   infoHash: string
   pieceLength: number
