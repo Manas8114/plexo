@@ -111,10 +111,7 @@ export function parsePowerShellDoctorData(jsonString: string): RawPowerShellDoct
 const VIRTUAL_REGEX =
   /hyper-v|virtual|wsl|vethernet|tap|vpn|tailscale|wireguard|wintun|zerotier|openvpn/i
 
-/**
- * Pure evaluator that inspects parsed Windows network state and active interfaces,
- * emitting structured diagnostic issues and recommendations.
- */
+/** Pure, read-only evaluation of parsed Windows network state. */
 export function diagnoseWindowsNetwork({
   psData,
   regData,
@@ -130,7 +127,7 @@ export function diagnoseWindowsNetwork({
   const routes = psData.routes ?? []
   const isDomain = Boolean(psData.domain)
 
-  // 1. Check fMinimizeConnections policy
+  // Read and report the connection policy without attempting to modify it.
   if (regData.exists && (regData.value ?? 0) !== 0) {
     const domainNote = isDomain
       ? ' Note: This computer is domain-joined and this policy may be managed by your organization.'
@@ -141,8 +138,7 @@ export function diagnoseWindowsNetwork({
       title: 'Windows may disconnect Wi-Fi when tethering is connected',
       detail:
         `Windows policy "fMinimizeConnections" is active (value: ${regData.value}). ` +
-        `This policy causes Windows to minimize simultaneous connections, which often forces Wi-Fi offline ` +
-        `when an Ethernet or USB phone tether connection becomes active.${domainNote}`,
+        `This policy can cause Windows to minimize simultaneous connections when an Ethernet or USB phone tether is connected.${domainNote}`,
       recommendation:
         'To allow multiple simultaneous connections:\n' +
         '• Windows Pro/Enterprise: Open gpedit.msc → Computer Configuration → Administrative Templates → Network → Windows Connection Manager → disable "Minimize the number of simultaneous connections..."\n' +
@@ -159,17 +155,14 @@ export function diagnoseWindowsNetwork({
       severity: 'info',
       title: 'Simultaneous connection policy is unconfigured (default)',
       detail:
-        `The "fMinimizeConnections" policy is not explicitly set in the registry. By default, Windows Connection Manager ` +
-        `may still disconnect Wi-Fi when a wired or mobile tether adapter is connected.${domainNote}`,
+        `The "fMinimizeConnections" policy is not explicitly set in the registry. Windows Connection Manager may still manage simultaneous connections.${domainNote}`,
       recommendation:
-        'If Wi-Fi drops when you plug in your phone tether, set fMinimizeConnections to 0:\n' +
-        '  reg add "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WcmSvc\\GroupPolicy" /v fMinimizeConnections /t REG_DWORD /d 0 /f'
+        'If Wi-Fi drops when you plug in your phone tether, consult Windows Connection Manager policy settings. The Network Doctor does not change system settings.'
     })
   }
 
-  // 2. Identify default route owner and metrics
-  // In Windows, default route has DestinationPrefix 0.0.0.0/0.
-  // Effective total metric is RouteMetric + InterfaceMetric.
+  // Identify the default route for information only. A lower metric on Ethernet than Wi-Fi
+  // is a normal Windows configuration and is not diagnosed as a problem or remediation target.
   const ipInterfaceByAlias = new Map<string, RawNetIPInterface>()
   const ipInterfaceByIndex = new Map<number, RawNetIPInterface>()
   for (const ipIf of ipInterfaces) {
@@ -188,107 +181,37 @@ export function diagnoseWindowsNetwork({
     alias: string
     index?: number
     nextHop?: string
-    routeMetric: number
-    interfaceMetric: number
     totalMetric: number
-    adapter?: RawNetAdapter
   }
 
-  const evaluatedRoutes: EvaluatedRoute[] = []
-  for (const route of routes) {
+  const evaluatedRoutes: EvaluatedRoute[] = routes.map((route) => {
     const alias = route.InterfaceAlias || ''
     const index = route.InterfaceIndex
     const ipIf =
       (index !== undefined ? ipInterfaceByIndex.get(index) : undefined) ??
       ipInterfaceByAlias.get(alias)
-    const ad =
-      (index !== undefined ? adapterByIndex.get(index) : undefined) ?? adapterByAlias.get(alias)
-    const routeMetric = route.RouteMetric ?? 0
-    const interfaceMetric = ipIf?.InterfaceMetric ?? 0
-    evaluatedRoutes.push({
+    return {
       alias,
       index,
       nextHop: route.NextHop,
-      routeMetric,
-      interfaceMetric,
-      totalMetric: routeMetric + interfaceMetric,
-      adapter: ad
-    })
-  }
+      totalMetric: (route.RouteMetric ?? 0) + (ipIf?.InterfaceMetric ?? 0)
+    }
+  })
 
   evaluatedRoutes.sort((a, b) => a.totalMetric - b.totalMetric)
   const defaultRoute = evaluatedRoutes[0]
-  let defaultRouteOwner: NetworkDoctorReport['defaultRouteOwner'] = undefined
-
-  if (defaultRoute) {
-    defaultRouteOwner = {
-      interfaceName: defaultRoute.alias || defaultRoute.adapter?.Name || 'Unknown',
-      metric: defaultRoute.totalMetric,
-      nextHop: defaultRoute.nextHop
-    }
-
-    // Check if non-Wi-Fi (such as tether or Ethernet) has a lower metric than an active Wi-Fi
-    const isOwnerWifi =
-      defaultRoute.adapter?.NdisPhysicalMedium === 9 ||
-      defaultRoute.adapter?.NdisPhysicalMedium === 1 ||
-      /wi-?fi|wireless|wlan/i.test(defaultRoute.alias)
-
-    const wifiRoute = evaluatedRoutes.find(
-      (r) =>
-        r.adapter?.NdisPhysicalMedium === 9 ||
-        r.adapter?.NdisPhysicalMedium === 1 ||
-        /wi-?fi|wireless|wlan/i.test(r.alias)
-    )
-
-    if (!isOwnerWifi && wifiRoute && defaultRoute.totalMetric < wifiRoute.totalMetric) {
-      issues.push({
-        id: 'defaultRoute',
-        severity: 'info',
-        title: `Default internet route owned by ${defaultRoute.alias} (metric: ${defaultRoute.totalMetric})`,
-        detail:
-          `Windows sends unpinned default traffic (such as system updates and web browsing) through ` +
-          `"${defaultRoute.alias}" because its metric (${defaultRoute.totalMetric}) is lower than Wi-Fi ` +
-          `(${wifiRoute.alias}: metric ${wifiRoute.totalMetric}). If this adapter is a cellular phone tether, ` +
-          `non-Plexo apps will consume cellular data by default.`,
-        recommendation:
-          defaultRoute.index !== undefined
-            ? `To prioritize Wi-Fi for general traffic while still combining both in Plexo, set the tether metric higher in an elevated PowerShell:\n` +
-              `  Set-NetIPInterface -InterfaceIndex ${defaultRoute.index} -AutomaticMetric Disabled -InterfaceMetric 500`
-            : undefined,
-        interfaceName: defaultRoute.alias
-      })
-    }
-  }
-
-  // 3. Detect IPv4 subnet overlaps between distinct active interfaces
-  for (let i = 0; i < interfaces.length; i++) {
-    for (let j = i + 1; j < interfaces.length; j++) {
-      const a = interfaces[i]
-      const b = interfaces[j]
-      const aSubnets = a.addresses
-        .filter((addr) => addr.family === 4 && addr.subnet)
-        .map((addr) => addr.subnet!)
-      const bSubnets = b.addresses
-        .filter((addr) => addr.family === 4 && addr.subnet)
-        .map((addr) => addr.subnet!)
-      const common = aSubnets.find((sub) => bSubnets.includes(sub))
-      if (common) {
-        issues.push({
-          id: 'subnetOverlap',
-          severity: 'warning',
-          title: `Subnet overlap: "${a.displayName}" and "${b.displayName}"`,
-          detail:
-            `Both "${a.displayName}" and "${b.displayName}" are assigned IP addresses in the same subnet (${common}). ` +
-            `This happens when a phone tether and local Wi-Fi router share identical private subnet ranges (e.g. 192.168.1.0/24). ` +
-            `The Windows routing table cannot reliably disambiguate local gateway destinations between them.`,
-          recommendation:
-            'Change your local Wi-Fi router or phone hotspot settings so that each connection operates on a distinct IP subnet range.'
-        })
+  const defaultRouteOwner: NetworkDoctorReport['defaultRouteOwner'] = defaultRoute
+    ? {
+        interfaceName:
+          defaultRoute.alias ||
+          (defaultRoute.index !== undefined ? adapterByIndex.get(defaultRoute.index)?.Name : undefined) ||
+          'Unknown',
+        metric: defaultRoute.totalMetric,
+        nextHop: defaultRoute.nextHop
       }
-    }
-  }
+    : undefined
 
-  // 4. APIPA and no-gateway adapters
+  // APIPA and interfaces without an IPv4 default route.
   for (const iface of interfaces) {
     const hasApipa = iface.addresses.some((addr) => addr.address.startsWith('169.254.'))
     if (hasApipa) {
@@ -296,21 +219,19 @@ export function diagnoseWindowsNetwork({
         id: 'apipa',
         severity: 'warning',
         title: `APIPA self-assigned IP on "${iface.displayName}"`,
-        detail: `Adapter "${iface.displayName}" has an APIPA address (169.254.x.x) and cannot communicate with the internet.`,
-        recommendation:
-          'Check cable connection or DHCP router configuration. This adapter should remain unselected in Plexo.',
+        detail: `Adapter "${iface.displayName}" has an APIPA address (169.254.x.x), which usually indicates it did not receive an IPv4 address from DHCP.`,
+        recommendation: 'Check the cable, phone tether, or DHCP configuration.',
         interfaceName: iface.displayName
       })
     }
 
-    // Check if this interface has any route in the routing table
     const hasDefaultRoute = evaluatedRoutes.some(
-      (r) =>
-        r.alias === iface.displayName ||
-        r.alias === iface.device ||
-        (typeof r.index === 'number' &&
-          (adapterByIndex.get(r.index)?.Name === iface.displayName ||
-            adapterByIndex.get(r.index)?.Name === iface.device))
+      (route) =>
+        route.alias === iface.displayName ||
+        route.alias === iface.device ||
+        (typeof route.index === 'number' &&
+          (adapterByIndex.get(route.index)?.Name === iface.displayName ||
+            adapterByIndex.get(route.index)?.Name === iface.device))
     )
 
     if (!hasDefaultRoute && !hasApipa && iface.addresses.some((addr) => addr.family === 4)) {
@@ -319,16 +240,15 @@ export function diagnoseWindowsNetwork({
         severity: 'warning',
         title: `No default gateway on "${iface.displayName}"`,
         detail:
-          `Adapter "${iface.displayName}" has an IP address but no default route (0.0.0.0/0) to the internet. ` +
-          `Plexo cannot route downloads through this adapter alone.`,
-        recommendation:
-          'Ensure this network adapter is connected to a router with internet access, or leave it unselected in Plexo.',
+          `Adapter "${iface.displayName}" has an IPv4 address but no default route (0.0.0.0/0). ` +
+          'It may not be able to reach internet destinations on its own.',
+        recommendation: 'Check that this network is connected to a router or tether with internet access.',
         interfaceName: iface.displayName
       })
     }
   }
 
-  // 5. Virtual / VPN / Hyper-V / WSL adapters
+  // Surface active virtual/VPN interfaces as informational notes only.
   for (const ad of adapters) {
     if (ad.Status && ad.Status.toLowerCase() !== 'up') continue
     const isVirtual =
@@ -340,10 +260,9 @@ export function diagnoseWindowsNetwork({
         severity: 'info',
         title: `Virtual or VPN adapter: "${ad.Name}"`,
         detail:
-          `Adapter "${ad.Name}" (${ad.InterfaceDescription || 'Virtual'}) is a tunnel or virtual network. ` +
-          `Virtual adapters route through existing physical interfaces and do not provide an independent internet uplink.`,
-        recommendation:
-          'Keep this adapter unselected in Plexo to avoid duplicating traffic across the same physical connection.',
+          `Adapter "${ad.Name}" (${ad.InterfaceDescription || 'Virtual'}) appears to be a tunnel or virtual network. ` +
+          'Check whether it is an independent internet connection before selecting it in Plexo.',
+        recommendation: 'Review the adapter in Plexo and select it only if it provides an independent internet connection.',
         interfaceName: ad.Name
       })
     }
@@ -358,7 +277,7 @@ export function diagnoseWindowsNetwork({
   }
 }
 
-// Module-level cache: only re-runs PowerShell when interface list changes
+// Module-level cache: only re-runs PowerShell when interface list changes or a rescan is requested.
 let cachedKey = ''
 let cachedReport: NetworkDoctorReport | null = null
 let inFlightScan: Promise<NetworkDoctorReport> | null = null
@@ -368,7 +287,6 @@ async function runWindowsDoctor(interfaces: NetworkInterfaceInfo[]): Promise<Net
     return { timestamp: Date.now(), supported: false, issues: [] }
   }
 
-  // Run reg.exe query for fMinimizeConnections (does not require admin rights)
   let regData: RegMinimizeConnectionsResult = { exists: false }
   try {
     const { stdout } = await execFileAsync(
@@ -383,11 +301,9 @@ async function runWindowsDoctor(interfaces: NetworkInterfaceInfo[]): Promise<Net
     )
     regData = parseRegQueryMinimizeConnections(stdout)
   } catch {
-    // Exit code 1 means key or value does not exist
     regData = { exists: false }
   }
 
-  // Run PowerShell cmdlets with ConvertTo-Json
   let psData: RawPowerShellDoctorData = {}
   try {
     const psScript =
@@ -413,11 +329,7 @@ async function runWindowsDoctor(interfaces: NetworkInterfaceInfo[]): Promise<Net
   return diagnoseWindowsNetwork({ psData, regData, interfaces })
 }
 
-/**
- * Returns the Network Doctor report.
- * Guaranteed not to run PowerShell on a timer: it only re-queries Windows
- * when the interface list changes, or when explicitly forced by user action.
- */
+/** Returns a read-only Network Doctor report; a forced scan is only user-triggered. */
 export async function getWindowsDoctorReport(
   interfaces: NetworkInterfaceInfo[],
   force = false
@@ -427,20 +339,11 @@ export async function getWindowsDoctorReport(
   }
 
   const key = interfaces
-    .map(
-      (i) =>
-        `${i.id}:${i.addresses
-          .map((a) => a.address)
-          .sort()
-          .join(',')}`
-    )
+    .map((i) => `${i.id}:${i.addresses.map((address) => address.address).sort().join(',')}`)
     .sort()
     .join('\n')
 
-  if (!force && cachedReport && cachedKey === key) {
-    return cachedReport
-  }
-
+  if (!force && cachedReport && cachedKey === key) return cachedReport
   if (inFlightScan) return inFlightScan
 
   inFlightScan = runWindowsDoctor(interfaces)
